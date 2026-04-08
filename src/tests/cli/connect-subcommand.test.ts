@@ -48,11 +48,53 @@ describe("connect subcommand", () => {
     expect(deps.checkProviderApiKey).toHaveBeenCalledWith(
       "anthropic",
       "sk-ant-123",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
     );
     expect(deps.createOrUpdateProvider).toHaveBeenCalledWith(
       "anthropic",
       "lc-anthropic",
       "sk-ant-123",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+  });
+
+  test("passes base URL through for API key providers", async () => {
+    const { deps } = createIoDeps();
+
+    const exitCode = await runConnectSubcommand(
+      [
+        "minimax",
+        "--api-key",
+        "sk-mini-123",
+        "--base-url",
+        "http://127.0.0.1:3000/anthropic",
+      ],
+      deps,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(deps.checkProviderApiKey).toHaveBeenCalledWith(
+      "minimax",
+      "sk-mini-123",
+      undefined,
+      undefined,
+      undefined,
+      "http://127.0.0.1:3000/anthropic",
+    );
+    expect(deps.createOrUpdateProvider).toHaveBeenCalledWith(
+      "minimax",
+      "lc-minimax",
+      "sk-mini-123",
+      undefined,
+      undefined,
+      undefined,
+      "http://127.0.0.1:3000/anthropic",
     );
   });
 
@@ -77,6 +119,10 @@ describe("connect subcommand", () => {
     expect(deps.checkProviderApiKey).toHaveBeenCalledWith(
       "google_ai",
       "prompted-key",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
     );
   });
 

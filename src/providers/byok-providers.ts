@@ -210,6 +210,30 @@ export interface ProviderResponse {
   region?: string;
 }
 
+function getDefaultProviderBaseUrl(providerType: string): string | undefined {
+  switch (providerType) {
+    case "anthropic":
+      return process.env.ANTHROPIC_BASE_URL;
+    case "openai":
+      return process.env.OPENAI_BASE_URL;
+    case "minimax":
+      return process.env.MINIMAX_BASE_URL || process.env.ANTHROPIC_BASE_URL;
+    default:
+      return undefined;
+  }
+}
+
+function resolveProviderBaseUrl(
+  providerType: string,
+  baseUrl?: string,
+): string | undefined {
+  const normalized = baseUrl?.trim();
+  if (normalized) {
+    return normalized;
+  }
+  return getDefaultProviderBaseUrl(providerType)?.trim() || undefined;
+}
+
 /**
  * Get the Letta API base URL and auth token
  */
@@ -312,13 +336,16 @@ export async function checkProviderApiKey(
   accessKey?: string,
   region?: string,
   profile?: string,
+  baseUrl?: string,
 ): Promise<void> {
+  const resolvedBaseUrl = resolveProviderBaseUrl(providerType, baseUrl);
   await providersRequest<{ message: string }>("POST", "/v1/providers/check", {
     provider_type: providerType,
     api_key: apiKey,
     ...(accessKey && { access_key: accessKey }),
     ...(region && { region }),
     ...(profile && { profile }),
+    ...(resolvedBaseUrl && { base_url: resolvedBaseUrl }),
   });
 }
 
@@ -332,7 +359,9 @@ export async function createProvider(
   accessKey?: string,
   region?: string,
   profile?: string,
+  baseUrl?: string,
 ): Promise<ProviderResponse> {
+  const resolvedBaseUrl = resolveProviderBaseUrl(providerType, baseUrl);
   return providersRequest<ProviderResponse>("POST", "/v1/providers", {
     name: providerName,
     provider_type: providerType,
@@ -340,6 +369,7 @@ export async function createProvider(
     ...(accessKey && { access_key: accessKey }),
     ...(region && { region }),
     ...(profile && { profile }),
+    ...(resolvedBaseUrl && { base_url: resolvedBaseUrl }),
   });
 }
 
@@ -352,7 +382,9 @@ export async function updateProvider(
   accessKey?: string,
   region?: string,
   profile?: string,
+  baseUrl?: string,
 ): Promise<ProviderResponse> {
+  const resolvedBaseUrl = baseUrl?.trim();
   return providersRequest<ProviderResponse>(
     "PATCH",
     `/v1/providers/${providerId}`,
@@ -361,6 +393,7 @@ export async function updateProvider(
       ...(accessKey && { access_key: accessKey }),
       ...(region && { region }),
       ...(profile && { profile }),
+      ...(resolvedBaseUrl && { base_url: resolvedBaseUrl }),
     },
   );
 }
@@ -383,11 +416,20 @@ export async function createOrUpdateProvider(
   accessKey?: string,
   region?: string,
   profile?: string,
+  baseUrl?: string,
 ): Promise<ProviderResponse> {
   const existing = await getProviderByName(providerName);
+  const resolvedBaseUrl = resolveProviderBaseUrl(providerType, baseUrl);
 
   if (existing) {
-    return updateProvider(existing.id, apiKey, accessKey, region, profile);
+    return updateProvider(
+      existing.id,
+      apiKey,
+      accessKey,
+      region,
+      profile,
+      resolvedBaseUrl,
+    );
   }
 
   return createProvider(
@@ -397,6 +439,7 @@ export async function createOrUpdateProvider(
     accessKey,
     region,
     profile,
+    resolvedBaseUrl,
   );
 }
 

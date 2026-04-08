@@ -24,6 +24,7 @@ import {
 const CONNECT_OPTIONS = {
   help: { type: "boolean", short: "h" },
   "api-key": { type: "string" },
+  "base-url": { type: "string" },
   method: { type: "string" },
   "access-key": { type: "string" },
   "secret-key": { type: "string" },
@@ -42,6 +43,7 @@ interface ConnectSubcommandDeps {
     accessKey?: string,
     region?: string,
     profile?: string,
+    baseUrl?: string,
   ) => Promise<void>;
   createOrUpdateProvider: (
     providerType: string,
@@ -50,6 +52,7 @@ interface ConnectSubcommandDeps {
     accessKey?: string,
     region?: string,
     profile?: string,
+    baseUrl?: string,
   ) => Promise<unknown>;
   isChatGPTOAuthConnected: () => Promise<boolean>;
   runChatGPTOAuthConnectFlow: (
@@ -89,6 +92,7 @@ function formatUsage(): string {
     "  letta connect chatgpt",
     "  letta connect codex",
     "  letta connect anthropic <api_key>",
+    "  letta connect minimax --api-key <api_key> --base-url <url>",
     "  letta connect openai --api-key <api_key>",
     "  letta connect bedrock --method iam --access-key <id> --secret-key <key> --region <region>",
     "  letta connect bedrock --method profile --profile <name> --region <region>",
@@ -262,6 +266,7 @@ export async function runConnectSubcommand(
   if (isConnectApiKeyProvider(provider)) {
     let apiKey =
       readStringOption(parsed.values["api-key"]) ?? restPositionals[0] ?? "";
+    const baseUrl = readStringOption(parsed.values["base-url"]);
     if (!apiKey && isConnectZaiBaseProvider(provider)) {
       io.stdout(
         "Do you have a Z.ai Coding plan?\n" +
@@ -289,13 +294,24 @@ export async function runConnectSubcommand(
 
     try {
       io.stdout(`Validating ${provider.byokProvider.displayName} API key...`);
-      await io.checkProviderApiKey(provider.byokProvider.providerType, apiKey);
+      await io.checkProviderApiKey(
+        provider.byokProvider.providerType,
+        apiKey,
+        undefined,
+        undefined,
+        undefined,
+        baseUrl,
+      );
 
       io.stdout("Saving provider...");
       await io.createOrUpdateProvider(
         provider.byokProvider.providerType,
         provider.byokProvider.providerName,
         apiKey,
+        undefined,
+        undefined,
+        undefined,
+        baseUrl,
       );
 
       io.stdout(

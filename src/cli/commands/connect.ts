@@ -118,6 +118,7 @@ function formatConnectUsage(): string {
     "  /connect chatgpt",
     "  /connect codex",
     "  /connect anthropic <api_key>",
+    "  /connect minimax <api_key> --base-url <url>",
     "  /connect openai <api_key>",
     "  /connect bedrock iam --access-key <id> --secret-key <key> --region <region>",
     "  /connect bedrock profile --profile <name> --region <region>",
@@ -203,10 +204,46 @@ function formatBedrockUsage(): string {
 
 function formatApiKeyUsage(provider: ResolvedConnectProvider): string {
   return [
-    `Usage: /connect ${provider.canonical} <api_key>`,
+    `Usage: /connect ${provider.canonical} <api_key> [--base-url <url>]`,
     "",
     `Connect to ${provider.byokProvider.displayName} by providing your API key.`,
   ].join("\n");
+}
+
+function parseApiKeyProviderArgs(args: string[]): {
+  apiKey: string;
+  baseUrl?: string;
+  error?: string;
+} {
+  let apiKey = "";
+  let baseUrl: string | undefined;
+
+  for (let i = 0; i < args.length; i += 1) {
+    const token = args[i] ?? "";
+
+    if (token === "--base-url") {
+      const value = args[i + 1];
+      if (!value || value.startsWith("--")) {
+        return { apiKey, baseUrl, error: "Missing value for --base-url" };
+      }
+      baseUrl = value;
+      i += 1;
+      continue;
+    }
+
+    if (token.startsWith("--")) {
+      return { apiKey, baseUrl, error: `Unknown option: ${token}` };
+    }
+
+    if (!apiKey) {
+      apiKey = token;
+      continue;
+    }
+
+    return { apiKey, baseUrl, error: `Unexpected argument: ${token}` };
+  }
+
+  return { apiKey, baseUrl };
 }
 
 function formatZaiCodingPlanPrompt(apiKey?: string): string {
@@ -296,6 +333,7 @@ async function handleConnectApiKeyProvider(
   msg: string,
   provider: ResolvedConnectProvider,
   apiKey: string,
+  baseUrl?: string,
 ): Promise<void> {
   const cmdId = addCommandResult(
     ctx.buffersRef,
@@ -309,7 +347,14 @@ async function handleConnectApiKeyProvider(
   ctx.setCommandRunning(true);
 
   try {
-    await checkProviderApiKey(provider.byokProvider.providerType, apiKey);
+    await checkProviderApiKey(
+      provider.byokProvider.providerType,
+      apiKey,
+      undefined,
+      undefined,
+      undefined,
+      baseUrl,
+    );
 
     updateCommandResult(
       ctx.buffersRef,
@@ -325,6 +370,10 @@ async function handleConnectApiKeyProvider(
       provider.byokProvider.providerType,
       provider.byokProvider.providerName,
       apiKey,
+      undefined,
+      undefined,
+      undefined,
+      baseUrl,
     );
 
     updateCommandResult(
@@ -512,7 +561,19 @@ export async function handleConnect(
   }
 
   if (isConnectApiKeyProvider(provider)) {
-    const apiKey = parts.slice(2).join("");
+    const parsed = parseApiKeyProviderArgs(parts.slice(2));
+    if (parsed.error) {
+      addCommandResult(
+        ctx.buffersRef,
+        ctx.refreshDerived,
+        msg,
+        `${parsed.error}\n\n${formatApiKeyUsage(provider)}`,
+        false,
+      );
+      return;
+    }
+
+    const apiKey = parsed.apiKey;
     if (!apiKey) {
       if (isConnectZaiBaseProvider(provider)) {
         addCommandResult(
@@ -533,7 +594,13 @@ export async function handleConnect(
       }
       return;
     }
-    await handleConnectApiKeyProvider(ctx, msg, provider, apiKey);
+    await handleConnectApiKeyProvider(
+      ctx,
+      msg,
+      provider,
+      apiKey,
+      parsed.baseUrl,
+    );
   }
 }
 
